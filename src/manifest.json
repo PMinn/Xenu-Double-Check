@@ -1,0 +1,21 @@
+{
+    "name": "無效連結確認",
+    "version": "0.0.1",
+    "description": "無效連結確認工具",
+    "manifest_version": 3,
+    "action": {
+    },
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "webRequest",
+        "tabs"
+    ],
+    "host_permissions": [
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "background.mjs",
+        "type": "module"
+    }
+}

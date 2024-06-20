@@ -1,0 +1,43 @@
+/* * {
+    white-space: pre-wrap;
+    white-space: -moz-pre-wrap;
+    white-space: -pre-wrap;
+    white-space: -o-pre-wrap;
+    word-wrap: break-word;
+} */
+
+/* loading bar in  top */
+#loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 8px;
+    background-color: #f39c12;
+    z-index: 9999;
+    -webkit-transition: width 0.3s;
+    transition: width 0.3s;
+}
+
+.table {
+    width: 100%;
+    /* table-layout: fixed; */
+}
+
+.table *:is(th, td) {
+    padding: 3px;
+}
+
+.table td {
+    overflow: auto;
+}
+
+.table .url,
+.table .title {
+    width: 300px;
+    display: block;
+    white-space: nowrap;
+    white-space: -moz-nowrap;
+    white-space: -nowrap;
+    white-space: -o-nowrap;
+}
