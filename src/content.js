@@ -38,24 +38,45 @@ function process(block) {
     }
 }
 
-function createIconElement(emoji) {
+function createListPrefix(number, emoji = '') {
     const icon = document.createElement('div');
-    icon.innerText = emoji;
-    icon.style.display = 'inline-block';
-    icon.style.marginRight = '5px';
-    return icon;
+    const num = document.createElement('span');
+    num.innerText = `${number}. `;
+
+    const emo = document.createElement('span');
+    emo.innerText = emoji;
+    emo.style.marginRight = '5px';
+
+    const startFrom = document.createElement('span');
+    startFrom.innerText = '從這裡開始執行';
+    startFrom.style.marginRight = '5px';
+    startFrom.style.textDecoration = 'underline';
+    startFrom.style.color = 'blue';
+
+    const runThis = document.createElement('span');
+    runThis.innerText = '執行這個';
+    runThis.style.marginRight = '5px';
+    runThis.style.textDecoration = 'underline';
+    runThis.style.color = 'blue';
+
+    icon.appendChild(num);
+    icon.appendChild(emo);
+    icon.appendChild(startFrom);
+    icon.appendChild(runThis);
+    return { icon, emo, startFrom, runThis };
 }
 
 const blinks = [];
 var bLinksIndex = -1;
 var isSource = false;
-var finishCount = 0;
+var isFinish = [];
 var emptyURLs = [];
-var notEmptyURLs = [];
+var ytimgURLs = [];
+var normalURLs = [];
+var trs = [];
+var listPrefixes = [];
+
 const h2s = document.querySelectorAll('h2');
-const loading = document.createElement('div');
-loading.id = 'loading';
-document.body.appendChild(loading);
 const table = document.createElement('table');
 table.classList.add('table');
 document.body.prepend(table);
@@ -76,20 +97,26 @@ table.appendChild(thead);
 
 const tbody = document.createElement('tbody');
 table.appendChild(tbody);
-var trs = [];
 for (let i = 0; i < h2s.length; i++) {
     if (h2s[i].innerText.startsWith('Broken links, ordered by link:')) {
         process(h2s[i].nextElementSibling);
+        isFinish = new Array(blinks.length).fill(false);
         for (let i = 0; i < blinks.length; i++) {
             const tr = document.createElement('tr');
             trs.push(tr);
             tbody.appendChild(tr);
+
+            let parentDiv = blinks[i].element.parentNode;
+            const listPrefix = createListPrefix(i + 1);
+            parentDiv.insertBefore(listPrefix.icon, blinks[i].element);
+            listPrefixes.push(listPrefix);
         }
         emptyURLs = blinks.filter(d => d.url == 'empty URL');
-        notEmptyURLs = blinks.filter(d => d.url != 'empty URL');
+        ytimgURLs = blinks.filter(d => d.url.includes('ytimg.com'));
+        normalURLs = blinks.filter(d => d.url != 'empty URL' && !d.url.includes('ytimg.com'));
         emptyURLs.forEach(d => {
-            let parentDiv = d.element.parentNode;
-            const blinkIndex = blinks.indexOf(d);
+            let blinkIndex = blinks.indexOf(d);
+            isFinish[blinkIndex] = true;
             trs[blinkIndex].innerHTML = `
                 <td>${blinkIndex + 1}</td>
                 <td>⛔</td>
@@ -101,14 +128,49 @@ for (let i = 0; i < h2s.length; i++) {
                 <td></td>
                 <td></td>
             `;
-            const icon = createIconElement(`${blinkIndex + 1}. ⛔`);
-            parentDiv.insertBefore(icon, d.element);
-            icon.scrollIntoView({ behavior: "smooth", block: "center" });
-            finishCount++;
-            loading.style.width = `${finishCount / blinks.length * 100}%`;
-            if (finishCount == blinks.length) loading.style.backgroundColor = 'green';
+            listPrefixes[blinkIndex].emo.innerText = '⛔';
+            listPrefixes[blinkIndex].icon.scrollIntoView({ behavior: "smooth", block: "center" });
+            var finishCount = isFinish.filter(d => d).length;
+            document.title = `${generateOutput(Math.floor(finishCount / blinks.length * 100))} ${finishCount}/${blinks.length}`;
+            if (finishCount == blinks.length) {
+                window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                document.title = '完成';
+            }
         })
-        chrome.runtime.sendMessage({ action: 'startListen', urls: notEmptyURLs.map(d => d.url) });
+        ytimgURLs.forEach(d => {
+            let blinkIndex = blinks.indexOf(d);
+            isFinish[blinkIndex] = true;
+            trs[blinkIndex].innerHTML = `
+                <td>${blinkIndex + 1}</td>
+                <td>⚠️</td>
+                <td></td>
+                <td>YT 預設圖片</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class='url'><a href='${d.url}' target='_blank'>${d.url}</a></td>
+            `;
+            listPrefixes[blinkIndex].emo.innerText = '⚠️';
+            listPrefixes[blinkIndex].icon.scrollIntoView({ behavior: "smooth", block: "center" });
+            var finishCount = isFinish.filter(d => d).length;
+            document.title = `${generateOutput(Math.floor(finishCount / blinks.length * 100))} ${finishCount}/${blinks.length}`;
+            if (finishCount == blinks.length) {
+                window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                document.title = '完成';
+            }
+        })
+        normalURLs.forEach((d, index) => {
+            let blinkIndex = blinks.indexOf(d);
+            let urlIndex = index;
+            listPrefixes[blinkIndex].startFrom.addEventListener('click', () => {
+                chrome.runtime.sendMessage({ action: 'startFrom', urlIndex });
+            })
+            listPrefixes[blinkIndex].runThis.addEventListener('click', () => {
+                chrome.runtime.sendMessage({ action: 'runThis', urlIndex });
+            })
+        })
+        chrome.runtime.sendMessage({ action: 'startListen', urls: normalURLs.map(d => d.url) });
         console.log(blinks)
         break;
     }
@@ -119,12 +181,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (action == 'result') {
         const { type, details, index, pageInfo } = request;
         console.log(type, details, pageInfo)
-        let parentDiv = notEmptyURLs[index].element.parentNode;
-        const blinkIndex = blinks.indexOf(notEmptyURLs[index]);
+        const blinkIndex = blinks.indexOf(normalURLs[index]);
         var emoji;
         if ((type == 'completed' && details.statusCode >= 400) || type == 'errorOccurred') emoji = '⛔';
         else if (type == 'completed' && pageInfo?.isIncludesDomain == false) emoji = '✅';
         else emoji = '⚠️';
+        isFinish[blinkIndex] = true;
         trs[blinkIndex].innerHTML = `
             <td>${blinkIndex + 1}</td>
             <td>${emoji}</td>
@@ -136,14 +198,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             <td>${details.timeStamp}</td>
             <td class='url'><a href='${details.url}' target='_blank'>${details.url}</a></td>
         `;
-        const icon = createIconElement(`${blinkIndex + 1}. ${emoji}`);
-        parentDiv.insertBefore(icon, notEmptyURLs[index].element);
-        icon.scrollIntoView({ behavior: "smooth", block: "center" });
-        finishCount++;
-        loading.style.width = `${finishCount / blinks.length * 100}%`;
+        listPrefixes[blinkIndex].emo.innerText = '⛔';
+        listPrefixes[blinkIndex].icon.scrollIntoView({ behavior: "smooth", block: "center" });
+        var finishCount = isFinish.filter(d => d).length;
+        document.title = `${generateOutput(Math.floor(finishCount / blinks.length * 100))} ${finishCount}/${blinks.length}`;
         if (finishCount == blinks.length) {
-            loading.style.backgroundColor = 'green';
             window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+            document.title = '完成';
         }
     }
-});
+})
+
+function generateOutput(pct, width = 10) {
+    const flr = Math.floor(pct * width / 100);
+    const str = "#".repeat(flr).padEnd(width, "_");
+    return `[${str}]`;
+    // return `[${str}] ${pct}%`;
+}

@@ -10,13 +10,11 @@ chrome.action.onClicked.addListener(tab => {
 });
 
 var urls;
-var urlsWithoutProtocol;
 var urlIndex = 0;
 var reportTabId, targetTabId;
-var isClosed;
-
+var isClosed, isOpened;
 function openNextTab() {
-    if (urlIndex >= urls.length) return;
+    if (isOpened[urlIndex] || urlIndex >= urls.length) return;
     console.log('[open tab]', urls[urlIndex]);
     chrome.tabs.create({
         // active: false,
@@ -24,18 +22,42 @@ function openNextTab() {
     }, tab => {
         targetTabId = tab.id;
     });
+    if (chrome.runtime.lastError) {
+        chrome.notifications.create(null, {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('icons/icon16.png'),
+            title: "發生錯誤",
+            message: chrome.runtime.lastError.message
+        });
+        for (let i = 0; i < urls.length; i++) {
+            isClosed[i] = false;
+            isOpened[i] = false;
+        }
+    }
 }
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action == 'startListen') {
         urls = request.urls;
-        urlsWithoutProtocol = urls.map(url => url.replaceAll('https://', '').replaceAll('http://', ''));
         urlIndex = 0;
         reportTabId = sender.tab.id;
         isClosed = Array(urls.length).fill(false);
+        isOpened = Array(urls.length).fill(false);
+        openNextTab();
+    } else if (request.action == 'startFrom') {
+        for (let i = request.urlIndex; i < urls.length; i++) {
+            isClosed[i] = false;
+            isOpened[i] = false;
+        }
+        urlIndex = request.urlIndex;
+        openNextTab();
+    } else if (request.action == 'runThis') {
+        isClosed[request.urlIndex] = false;
+        isOpened[request.urlIndex] = false;
+        urlIndex = request.urlIndex;
         openNextTab();
     }
-});
+})
 
 chrome.webRequest.onCompleted.addListener(details => {
     if (details.tabId == targetTabId) {

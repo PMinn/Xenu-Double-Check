@@ -7,7 +7,7 @@
 } */
 
 /* loading bar in  top */
-#loading {
+/* #loading {
     position: fixed;
     top: 0;
     left: 0;
@@ -17,7 +17,7 @@
     z-index: 9999;
     -webkit-transition: width 0.3s;
     transition: width 0.3s;
-}
+} */
 
 .table {
     width: 100%;
